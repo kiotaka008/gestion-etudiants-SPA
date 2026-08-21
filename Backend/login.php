@@ -31,9 +31,9 @@ if ($ldap_conn) {
     ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
     ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
 
-    // Construction du compte Active Directory (ex: jdupont@l2.eni.mg ou l'email complet)
-    // Si vos utilisateurs se connectent avec leur email complet ou leur login :
-    $ldap_bind_user = $email . "@l2.eni.mg"; 
+    // Utilisation du format NetBIOS (L2\Rbrayan) ou UPN selon votre choix
+    // Ici on utilise le format L2\ + le login saisi
+    $ldap_bind_user = "L2\\" . $email; 
 
     // Tentative d'authentification LDAP auprès du Windows Server
     $ldap_bind = @ldap_bind($ldap_conn, $ldap_bind_user, $motdepasse);
@@ -47,7 +47,7 @@ if ($ldap_conn) {
             $bdd = new PDO("mysql:host=localhost;dbname=gestion_etudiant;charset=utf8", "root", "");
             $bdd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            // On vérifie si l'utilisateur existe dans MySQL
+            // On vérifie si l'utilisateur existe en base locale (adaptez la colonne 'email' si nécessaire)
             $req = $bdd->prepare("SELECT * FROM utilisateurs WHERE email = ?");
             $req->execute([$email]);
             $user = $req->fetch(PDO::FETCH_ASSOC);
@@ -61,8 +61,6 @@ if ($ldap_conn) {
                     "user" => $user
                 ]);
             } else {
-                // Optionnel : Si l'utilisateur est dans l'Active Directory mais pas encore dans MySQL, 
-                // on peut soit refuser, soit l'insérer automatiquement à la volée.
                 echo json_encode([
                     "success" => false,
                     "message" => "Compte valide dans le domaine, mais profil introuvable dans l'application."
@@ -77,7 +75,7 @@ if ($ldap_conn) {
         }
 
     } else {
-        // ÉCHEC LDAP : Le mot de passe ou l'email est faux sur le domaine Windows Server
+        // ÉCHEC LDAP : Le mot de passe ou l'identifiant est faux sur le domaine Windows Server
         @ldap_close($ldap_conn);
         echo json_encode(["success" => false, "message" => "Email ou mot de passe incorrect sur le domaine."]);
     }
