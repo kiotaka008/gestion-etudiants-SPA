@@ -1,56 +1,97 @@
 <?php
+
 header("Access-Control-Allow-Origin: *");
+
 header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
 header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
+
 header("Content-Type: application/json; charset=UTF-8");
 
+
+// Gestion de la requête de pré-vérification OPTIONS
+
 if (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+
     exit(0);
+
 }
+
+
+// Récupération des données JSON envoyées par Axios
 
 $json = file_get_contents("php://input");
+
 $data = json_decode($json, true);
 
+
 $email = isset($data['email']) ? trim($data['email']) : null;
-$motdepasse = isset($data['motdepasse']) ? $data['motdepasse'] : null;
+
+$motdepasse = isset($data['motdepasse']) ? $data['motdepasse'] : null; // Reçoit 'motdepasse' depuis Vue
+
 
 if (empty($email) || empty($motdepasse)) {
+
     echo json_encode(["success" => false, "message" => "Veuillez remplir tous les champs."]);
+
     exit;
+
 }
 
-$ldap_host = "192.168.1.10";
-$ldap_port = 389;
 
-$ldap_conn = @ldap_connect($ldap_host, $ldap_port);
+try {
 
-if ($ldap_conn) {
-    ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
-    ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
+    // Connexion à la base de données correcte
 
-    $ldap_bind_user = $email . "@l2.eni.mg"; 
+    $bdd = new PDO("mysql:host=localhost;dbname=gestion_etudiant;charset=utf8", "root", "");
 
-    // On enlève le "@" pour capturer l'erreur exacte du serveur Windows
-    $ldap_bind = ldap_bind($ldap_conn, $ldap_bind_user, $motdepasse);
+    $bdd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-    if ($ldap_bind) {
-        @ldap_close($ldap_conn);
-        echo json_encode(["success" => true, "message" => "Succès total LDAP !"]);
-    } else {
-        // Récupération de l'erreur détaillée renvoyée par l'Active Directory
-        $err_num = ldap_errno($ldap_conn);
-        $err_str = ldap_error($ldap_conn);
-        @ldap_close($ldap_conn);
+
+    // Recherche de l'utilisateur par son email
+
+    $req = $bdd->prepare("SELECT * FROM utilisateurs WHERE email = ?");
+
+    $req->execute([$email]);
+
+    $user = $req->fetch(PDO::FETCH_ASSOC);
+
+
+    // Vérification de l'existence de l'utilisateur et du mot de passe haché
+
+    if ($user && password_verify($motdepasse, $user['motdepasse'])) {
+
+        // Optionnel : ne pas renvoyer le mot de passe haché pour des raisons de sécurité
+
+        unset($user['motdepasse']);
+
+       
 
         echo json_encode([
-            "success" => false, 
-            "message" => "Erreur LDAP [$err_num]: $err_str (Tentative avec: $ldap_bind_user)"
+
+            "success" => true,
+
+            "message" => "Connexion réussie !",
+
+            "user" => $user
+
         ]);
+
+    } else {
+
+        echo json_encode(["success" => false, "message" => "Email ou mot de passe incorrect."]);
+
     }
-} else {
+
+
+} catch (PDOException $e) {
+
     echo json_encode([
+
         "success" => false,
-        "message" => "Erreur : Impossible de joindre le serveur LDAP."
+
+        "message" => "Erreur SQL Base de données : " . $e->getMessage()
+
     ]);
-}
-?>
+
+} 
