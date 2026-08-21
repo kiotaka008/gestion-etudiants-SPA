@@ -31,9 +31,8 @@ if ($ldap_conn) {
     ldap_set_option($ldap_conn, LDAP_OPT_PROTOCOL_VERSION, 3);
     ldap_set_option($ldap_conn, LDAP_OPT_REFERRALS, 0);
 
-    // Utilisation du format NetBIOS (L2\Rbrayan) ou UPN selon votre choix
-    // Ici on utilise le format L2\ + le login saisi
-    $ldap_bind_user = "L2\\" . $email; 
+    // Utilisation du format UPN complet (ex: Rbrayan@l2.eni.mg)
+    $ldap_bind_user = $email . "@l2.eni.mg"; 
 
     // Tentative d'authentification LDAP auprès du Windows Server
     $ldap_bind = @ldap_bind($ldap_conn, $ldap_bind_user, $motdepasse);
@@ -47,7 +46,7 @@ if ($ldap_conn) {
             $bdd = new PDO("mysql:host=localhost;dbname=gestion_etudiant;charset=utf8", "root", "");
             $bdd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-            // On vérifie si l'utilisateur existe en base locale (adaptez la colonne 'email' si nécessaire)
+            // On vérifie si l'utilisateur existe en base locale
             $req = $bdd->prepare("SELECT * FROM utilisateurs WHERE email = ?");
             $req->execute([$email]);
             $user = $req->fetch(PDO::FETCH_ASSOC);
